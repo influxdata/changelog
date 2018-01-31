@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+
+	"github.com/octokit/go-octokit/octokit"
 )
 
 type EntryType int
@@ -38,7 +40,15 @@ type Updater interface {
 	NewEntry(rev Revision) (*Entry, error)
 }
 
-type GitHubUpdater struct{}
+type GitHubUpdater struct {
+	client *octokit.Client
+}
+
+func NewGitHubUpdater(authMethod octokit.AuthMethod) *GitHubUpdater {
+	return &GitHubUpdater{
+		client: octokit.NewClient(authMethod),
+	}
+}
 
 var reSubjectLine = regexp.MustCompile(`^Merge pull request #(\d+) from .*$`)
 

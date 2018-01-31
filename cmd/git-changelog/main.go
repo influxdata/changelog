@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/github/hub/github"
 	"github.com/influxdata/changelog"
 	"github.com/influxdata/changelog/git"
+	"github.com/octokit/go-octokit/octokit"
 )
 
 func Fatalf(s string, v ...interface{}) {
@@ -13,7 +16,45 @@ func Fatalf(s string, v ...interface{}) {
 	os.Exit(1)
 }
 
-//var reSubjectLine = regexp.MustCompile(`^Merge pull request #(\d+) from (\w+\/)?(\w+-)?((\d+)-)?.*\/(feature|bugfix)$`)
+func detectAuthMethod() (octokit.AuthMethod, error) {
+	localRepo, err := github.LocalRepo()
+	if err != nil {
+		return nil, err
+	}
+
+	project, err := localRepo.MainProject()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to see if we just already have an access token.
+	// If we do, we don't need to fuss with whether or not we want to ask for one.
+	host := github.CurrentConfig().Find(project.Host)
+	if host == nil {
+		// Attempt to access the repository without an access token.
+		// Do this using octokit so we avoid the internals of hub which requires
+		// the access token to always exist.
+		if ok := func() bool {
+			client := octokit.NewClient(nil)
+			_, result := client.Repositories().One(nil, octokit.M{
+				"owner": project.Owner,
+				"repo":  project.Name,
+			})
+			return result.Err == nil
+		}(); ok {
+			return nil, nil
+		}
+		host = &github.Host{Host: project.Host}
+	}
+
+	// Attempt to use hub to check if the repository exists. This will automatically
+	// ask for a username/password for hub if one does not exist.
+	client := github.NewClientWithHost(host)
+	if !client.IsRepositoryExist(project) {
+		return nil, errors.New("repository does not exist")
+	}
+	return octokit.TokenAuth{AccessToken: client.Host.AccessToken}, nil
+}
 
 func main() {
 	// Change to the root of the git repository.
@@ -46,7 +87,12 @@ func main() {
 		Fatalf("Could not list revisions: %s", err)
 	}
 
-	updater := &changelog.GitHubUpdater{}
+	authMethod, err := detectAuthMethod()
+	if err != nil {
+		Fatalf("Could not access repository: %s", err)
+	}
+
+	updater := changelog.NewGitHubUpdater(authMethod)
 	for _, rev := range revisions {
 		if err := func() error {
 			rev, err := git.Show(rev)
