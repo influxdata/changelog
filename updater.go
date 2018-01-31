@@ -66,7 +66,11 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 	}
 
 	// Determine the entry type using the pull request number.
-	typ := FeatureRequest
+	typ, err := u.findIssueType(number)
+	if err != nil {
+		return nil, fmt.Errorf("could not identify issue type: %s", err)
+	}
+
 	return &Entry{
 		Number: number,
 		Type:   typ,
@@ -77,4 +81,25 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 		},
 		Message: rev.Message(),
 	}, nil
+}
+
+func (u *GitHubUpdater) findIssueType(n int) (EntryType, error) {
+	labels, result := u.client.IssueLabels().All(nil, octokit.M{
+		"owner":  "influxdata",
+		"repo":   "influxdb",
+		"number": n,
+	})
+	if result.Err != nil {
+		return UnknownEntryType, result.Err
+	}
+
+	for _, l := range labels {
+		switch l.Name {
+		case "kind/feature request":
+			return FeatureRequest, nil
+		case "kind/bugfix":
+			return Bugfix, nil
+		}
+	}
+	return UnknownEntryType, nil
 }
