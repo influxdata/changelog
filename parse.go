@@ -163,7 +163,9 @@ func (c *Changelog) AddEntry(e *Entry) error {
 
 	item := blackfriday.NewNode(blackfriday.Item)
 	item.AppendChild(paragraph)
-
+	if list.FirstChild == nil {
+		item.ListFlags = blackfriday.ListItemBeginningOfList
+	}
 	list.AppendChild(item)
 	return nil
 }
@@ -185,7 +187,7 @@ func ParseFile(fpath string) (*Changelog, error) {
 		return nil, err
 	}
 
-	md := blackfriday.New()
+	md := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions))
 	return &Changelog{
 		doc: md.Parse(in),
 	}, nil
