@@ -28,11 +28,7 @@ var (
 			IsBefore: "Bugfixes",
 		},
 		Bugfix: {
-			Name:     "Bugfixes",
-			IsBefore: "Miscellaneous",
-		},
-		UnknownEntryType: {
-			Name: "Miscellaneous",
+			Name: "Bugfixes",
 		},
 	}
 )
