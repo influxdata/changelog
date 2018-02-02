@@ -100,7 +100,10 @@ func (c *Changelog) AddEntry(e *Entry) error {
 
 	// Within this version heading, attempt to find a heading that matches the section we want to add.
 	var section *blackfriday.Node
-	headingData := headings[e.Type]
+	headingData, ok := headings[e.Type]
+	if !ok {
+		return nil
+	}
 	for n := versionHeader.Next; n != nil; n = n.Next {
 		if n.Type != blackfriday.Heading {
 			continue
