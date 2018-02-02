@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/jsternberg/markdownfmt/markdown"
 	"gopkg.in/russross/blackfriday.v2"
@@ -38,121 +37,132 @@ type Changelog struct {
 }
 
 func (c *Changelog) AddEntry(e *Entry) error {
-	// Find the first version heading.
-	var versionHeader *blackfriday.Node
-	c.doc.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-		switch node.Type {
-		case blackfriday.Heading:
-			if node.HeadingData.Level == 2 {
-				m := reVersionHeader.FindStringSubmatch(getHeadingText(node))
-				if m == nil {
-					return blackfriday.GoToNext
-				} else if m[3] == "unreleased" {
-					versionHeader = node
-				} else {
-					parts := strings.Split(m[1], ".")
-					indices := make([]int, len(parts))
-					for i, s := range parts {
-						indices[i], _ = strconv.Atoi(s)
-					}
-
-					if len(indices) >= 2 {
-						indices[1]++
-					}
-					for len(indices) < 3 {
-						indices = append(indices, 0)
-					}
-
-					if len(parts) < len(indices) {
-						parts = make([]string, len(indices))
-					}
-					for i, n := range indices {
-						parts[i] = strconv.Itoa(n)
-					}
-					version := strings.Join(parts, ".")
-
-					versionHeader = blackfriday.NewNode(blackfriday.Heading)
-					versionHeader.HeadingData.Level = 2
-					headingText := blackfriday.NewNode(blackfriday.Text)
-					headingText.Literal = []byte(fmt.Sprintf("v%s [unreleased]", version))
-					versionHeader.AppendChild(headingText)
-					node.InsertBefore(versionHeader)
-				}
-				return blackfriday.Terminate
-			}
-		}
-		return blackfriday.GoToNext
-	})
-
-	// Include the first version heading.
-	if versionHeader == nil {
-		versionHeader = blackfriday.NewNode(blackfriday.Heading)
-		versionHeader.HeadingData.Level = 2
-		headingText := blackfriday.NewNode(blackfriday.Text)
-		headingText.Literal = []byte("v1.0.0 [unreleased]")
-		versionHeader.AppendChild(headingText)
-		c.doc.AppendChild(versionHeader)
-	}
-
-	// Within this version heading, attempt to find a heading that matches the section we want to add.
-	var section *blackfriday.Node
-	headingData, ok := headings[e.Type]
+	heading, ok := headings[e.Type]
 	if !ok {
 		return nil
 	}
-	for n := versionHeader.Next; n != nil; n = n.Next {
-		if n.Type != blackfriday.Heading {
-			continue
+
+	section := c.findOrCreateHeading(nil, 0, func(text string) int {
+		m := reVersionHeader.FindStringSubmatch(text)
+		if m == nil {
+			return -1
 		}
-		text := getHeadingText(n)
-		if n.HeadingData.Level <= 2 || (headingData.IsBefore != "" && text == headingData.IsBefore) {
-			// We need to insert this heading here.
-			section = blackfriday.NewNode(blackfriday.Heading)
-			section.HeadingData.Level = 3
-			headingText := blackfriday.NewNode(blackfriday.Text)
-			headingText.Literal = []byte(headingData.Name)
-			section.AppendChild(headingText)
-			n.InsertBefore(section)
+
+		ver, err := NewVersion(m[1])
+		if err != nil {
+			return -1
+		}
+		return e.Version.Compare(ver)
+	}, func() *blackfriday.Node {
+		text := blackfriday.NewNode(blackfriday.Text)
+		text.Literal = []byte(fmt.Sprintf("v%s [unreleased]", e.Version))
+		node := blackfriday.NewNode(blackfriday.Heading)
+		node.HeadingData.Level = 2
+		node.AppendChild(text)
+		return node
+	})
+
+	// Look for the entry within this section. Take a look at every list and try to match the pattern.
+	// The section does not matter for the purposes of this function since we trust what is in the file
+	// more than the metadata we have been given.
+	for n := section.Next; n != nil; n = n.Next {
+		if n.Type == blackfriday.Heading && n.HeadingData.Level <= section.Level {
+			// We have entered a new section. We are looking for this entry only in this version.
+			// The entry being present in other versions does not matter.
 			break
-		} else if n.HeadingData.Level == 3 && text == headingData.Name {
-			section = n
-			break
+		}
+
+		found := false
+		n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+			switch node.Type {
+			case blackfriday.Link:
+				var buf bytes.Buffer
+				for n := node.FirstChild; n != nil; n = n.Next {
+					n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+						buf.Write(node.Literal)
+						return blackfriday.GoToNext
+					})
+				}
+
+				text := buf.Bytes()
+				text = bytes.TrimPrefix(text, []byte{'#'})
+				n, err := strconv.Atoi(string(text))
+				if err != nil {
+					return blackfriday.SkipChildren
+				}
+
+				if n == e.Number {
+					found = true
+					return blackfriday.Terminate
+				}
+				return blackfriday.SkipChildren
+			}
+			return blackfriday.GoToNext
+		})
+
+		if found {
+			// There is no need to insert this entry since it has been found.
+			return nil
 		}
 	}
 
-	if section == nil {
-		section = blackfriday.NewNode(blackfriday.Heading)
-		section.HeadingData.Level = 3
-		headingText := blackfriday.NewNode(blackfriday.Text)
-		headingText.Literal = []byte(headingData.Name)
-		section.AppendChild(headingText)
-		c.doc.AppendChild(section)
-	}
+	// Find the section we wish to insert this value into.
+	entries := c.findOrCreateHeading(section.Next, section.HeadingData.Level, func(text string) int {
+		if text == heading.Name {
+			return 0
+		} else if text == heading.IsBefore {
+			return 1
+		}
+		return -1
+	}, func() *blackfriday.Node {
+		text := blackfriday.NewNode(blackfriday.Text)
+		text.Literal = []byte(heading.Name)
+		node := blackfriday.NewNode(blackfriday.Heading)
+		node.HeadingData.Level = section.HeadingData.Level + 1
+		node.AppendChild(text)
+		return node
+	})
 
-	// Insert a list as the first element after the heading if it does not exist.
-	list := section.Next
-	if list == nil || list.Type != blackfriday.List {
+	// If the first element after the heading is a list, insert it at the end of the list. If it isn't
+	// a list, insert a list.
+	var list *blackfriday.Node
+	if entries.Next != nil && entries.Next.Type == blackfriday.List {
+		list = entries.Next
+	} else {
 		list = blackfriday.NewNode(blackfriday.List)
 		list.ListData = blackfriday.ListData{
 			Tight:      true,
 			BulletChar: '-',
 		}
-
-		if section.Next != nil {
-			section.Next.InsertBefore(list)
+		if entries.Next != nil {
+			entries.Next.InsertBefore(list)
 		} else {
-			section.Parent.AppendChild(list)
+			entries.Parent.AppendChild(list)
 		}
 	}
 
-	// Create the list item and insert it at the end.
-	linkText := blackfriday.NewNode(blackfriday.Text)
-	linkText.Literal = []byte(fmt.Sprintf("#%d", e.Number))
+	// Add an item to the end of the list. We have already checked if the list item exists and it doesn't,
+	// so feel safe adding it.
+	item := c.createListItem(e)
+	if list.LastChild != nil {
+		list.LastChild.ListFlags &= ^blackfriday.ListItemEndOfList
+	}
+	if list.FirstChild == nil {
+		item.ListFlags |= blackfriday.ListItemBeginningOfList
+	}
+	item.ListFlags |= blackfriday.ListItemEndOfList
+	list.AppendChild(item)
+	return nil
+}
+
+func (c *Changelog) createListItem(e *Entry) *blackfriday.Node {
+	text := blackfriday.NewNode(blackfriday.Text)
+	text.Literal = []byte(fmt.Sprintf("#%d", e.Number))
 	link := blackfriday.NewNode(blackfriday.Link)
 	link.LinkData = blackfriday.LinkData{
 		Destination: []byte(e.URL.String()),
 	}
-	link.AppendChild(linkText)
+	link.AppendChild(text)
 	comment := blackfriday.NewNode(blackfriday.Text)
 	comment.Literal = []byte(fmt.Sprintf(": %s.", e.Message))
 
@@ -162,11 +172,127 @@ func (c *Changelog) AddEntry(e *Entry) error {
 
 	item := blackfriday.NewNode(blackfriday.Item)
 	item.AppendChild(paragraph)
-	if list.FirstChild == nil {
-		item.ListFlags = blackfriday.ListItemBeginningOfList
+	return item
+}
+
+func (c *Changelog) hasEntry(e *Entry) bool {
+	ver := c.findVersionHeading(e.Version)
+	if ver == nil {
+		return false
 	}
-	list.AppendChild(item)
-	return nil
+
+	var found bool
+	for n := ver.Next; n != nil; n = n.Next {
+		if n.Type == blackfriday.Heading && n.HeadingData.Level <= 2 {
+			break
+		}
+
+		n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+			if node.Type == blackfriday.Link {
+				var buf bytes.Buffer
+				for n := node.FirstChild; n != nil; n = n.Next {
+					n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+						buf.Write(node.Literal)
+						return blackfriday.GoToNext
+					})
+				}
+
+				text := buf.Bytes()
+				text = bytes.TrimPrefix(text, []byte{'#'})
+				n, err := strconv.Atoi(string(text))
+				if err != nil {
+					return blackfriday.SkipChildren
+				}
+
+				if n == e.Number {
+					found = true
+					return blackfriday.Terminate
+				}
+				return blackfriday.SkipChildren
+			}
+			return blackfriday.GoToNext
+		})
+
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Changelog) findVersionHeading(v *Version) *blackfriday.Node {
+	return c.findOrCreateHeading(nil, 0, func(text string) int {
+		m := reVersionHeader.FindStringSubmatch(text)
+		if m == nil {
+			return -1
+		}
+
+		ver, err := NewVersion(m[1])
+		if err != nil {
+			return -1
+		}
+		return ver.Compare(v)
+	}, nil)
+}
+
+func (c *Changelog) findOrCreateHeading(start *blackfriday.Node, level int, cmp func(text string) int, create func() *blackfriday.Node) (section *blackfriday.Node) {
+	if start == nil {
+		if c.doc.FirstChild == nil {
+			if create != nil {
+				section = create()
+				c.doc.AppendChild(section)
+			}
+			return section
+		}
+		start = c.doc.FirstChild
+	}
+
+	for n := start; n != nil; n = n.Next {
+		n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+			switch node.Type {
+			case blackfriday.Heading:
+				// If the heading is outside of the range we are looking for, then try to create the node and terminate.
+				if node.HeadingData.Level <= level {
+					if create != nil {
+						section = create()
+						node.InsertBefore(section)
+						return blackfriday.Terminate
+					}
+				}
+
+				var buf bytes.Buffer
+				for n := node.FirstChild; n != nil; n = n.Next {
+					n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+						buf.Write(node.Literal)
+						return blackfriday.GoToNext
+					})
+				}
+
+				if val := cmp(buf.String()); val == 0 {
+					section = node
+					return blackfriday.Terminate
+				} else if val > 0 {
+					if create != nil {
+						section = create()
+						node.InsertBefore(section)
+					}
+					return blackfriday.Terminate
+				}
+				return blackfriday.SkipChildren
+			}
+			return blackfriday.GoToNext
+		})
+
+		if section != nil {
+			return section
+		}
+	}
+
+	if section == nil && create != nil {
+		section = create()
+		start.Parent.AppendChild(section)
+	}
+	return section
 }
 
 func (c *Changelog) WriteFile(fpath string) error {

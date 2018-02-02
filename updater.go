@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/influxdata/changelog/git"
 	"github.com/octokit/go-octokit/octokit"
 )
 
@@ -60,7 +61,10 @@ func NewGitHubUpdater(authMethod octokit.AuthMethod) *GitHubUpdater {
 	}
 }
 
-var reSubjectLine = regexp.MustCompile(`^Merge pull request #(\d+) from .*$`)
+var (
+	reSubjectLine = regexp.MustCompile(`^Merge pull request #(\d+) from .*$`)
+	reVersion     = regexp.MustCompile(`^v?(\d+(\.\d+)*)[-.]?(rc\d+)?$`)
+)
 
 func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 	// Determine from the subject line if this is a merge commit from a pull request.
@@ -81,6 +85,31 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 		return nil, fmt.Errorf("could not identify issue type: %s", err)
 	}
 
+	// Retrieve the last tag for this PR so we can select which version this belongs in.
+	tag, err := git.LastTag()
+	if err != nil {
+		return nil, err
+	}
+
+	m = reVersion.FindStringSubmatch(tag)
+	if m == nil {
+		return nil, errors.New("could not find version information")
+	}
+
+	ver, err := NewVersion(m[1])
+	if err != nil {
+		return nil, err
+	}
+
+	// If rc is present, then we have a release candidate and should not increment the version number.
+	// If we do not, then increment the version.
+	if m[3] == "" {
+		segments := ver.Segments()
+		if len(segments) > 1 {
+			segments[1]++
+		}
+	}
+
 	return &Entry{
 		Number: number,
 		Type:   typ,
@@ -90,6 +119,7 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 			Path:   fmt.Sprintf("/influxdata/influxdb/pull/%d", number),
 		},
 		Message: rev.Message(),
+		Version: ver,
 	}, nil
 }
 
