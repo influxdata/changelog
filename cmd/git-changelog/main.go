@@ -59,6 +59,7 @@ func detectAuthMethod() (octokit.AuthMethod, error) {
 }
 
 func main() {
+	all := flag.BoolP("all", "a", false, "Select from the first commit to the selected commit (HEAD as the default)")
 	flag.Parse()
 
 	// Change to the root of the git repository.
@@ -77,22 +78,28 @@ func main() {
 	// Process the arguments and convert them to ranges that go to head if they are
 	// not already a range.
 	args := flag.Args()
-	if len(args) == 0 {
-		// If there are no arguments, use the last tag as the range.
-		tag, err := git.LastTag()
-		if err != nil {
-			Fatalf("Could not find last tag: %s", err)
-		}
-
-		if tag != "" {
-			args = append(args, git.Range(tag, "HEAD"))
-		} else {
+	if *all {
+		if len(args) == 0 {
 			args = append(args, "HEAD")
 		}
 	} else {
-		for i, arg := range args {
-			if !strings.Contains(arg, "..") {
-				args[i] = git.Range(arg, "HEAD")
+		if len(args) == 0 {
+			// If there are no arguments, use the last tag as the range.
+			tag, err := git.LastTag()
+			if err != nil {
+				Fatalf("Could not find last tag: %s", err)
+			}
+
+			if tag != "" {
+				args = append(args, git.Range(tag, "HEAD"))
+			} else {
+				args = append(args, "HEAD")
+			}
+		} else {
+			for i, arg := range args {
+				if !strings.Contains(arg, "..") {
+					args[i] = git.Range(arg, "HEAD")
+				}
 			}
 		}
 	}
