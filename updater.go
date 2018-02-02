@@ -26,10 +26,20 @@ type Revision interface {
 }
 
 type Entry struct {
-	Number  int
-	Type    EntryType
-	URL     *url.URL
+	// Number is the entry number. This usually corresponds to the pull request number.
+	Number int
+
+	// Type is the entry type. It determines which section of the changelog the entry should be placed in.
+	Type EntryType
+
+	// URL is the url of the entry.
+	URL *url.URL
+
+	// Message is the human-readable label for the entry.
 	Message string
+
+	// Version is the version this entry should be added to.
+	Version *Version
 }
 
 // Updater determines how the changelog will be updated based on the new commits.

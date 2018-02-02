@@ -35,15 +35,20 @@ func LastModified(path string) (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func RevList(start string, end ...string) ([]string, error) {
-	var revRange string
-	if len(end) > 0 {
-		revRange = fmt.Sprintf("%s..%s", start, end[0])
-	} else {
-		revRange = start
-	}
+// Range returns a string for specifying a range between two commits.
+func Range(start, end string) string {
+	return fmt.Sprintf("%s..%s", start, end)
+}
 
-	cmd := exec.Command("git", "rev-list", "--reverse", revRange)
+// Merges returns a list of all revisions where a merge occurred.
+func Merges(revs ...string) ([]string, error) {
+	args := []string{"rev-list", "--reverse", "--min-parents=2"}
+	if len(revs) > 0 {
+		args = append(args, revs...)
+	} else {
+		args = append(args, "HEAD")
+	}
+	cmd := exec.Command("git", args...)
 	r, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("could not pipe output: %s", err)
@@ -53,17 +58,37 @@ func RevList(start string, end ...string) ([]string, error) {
 		return nil, err
 	}
 
-	var revs []string
+	var revisions []string
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		rev := strings.TrimSpace(scanner.Text())
-		revs = append(revs, rev)
+		revisions = append(revisions, rev)
 	}
 
 	if err := cmd.Wait(); err != nil {
 		return nil, err
 	}
-	return revs, nil
+	return revisions, nil
+}
+
+// LastTag finds the last tag if it exists. If no tag can be found, then
+// this returns a blank string.
+func LastTag() (string, error) {
+	cmd := exec.Command("git", "describe", "--abbrev=0", "--tags")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+
+	if err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			if string(bytes.TrimSpace(out)) == "fatal: No names found, cannot describe anything." {
+				return "", nil
+			}
+		}
+		return "", err
+	}
+	return string(bytes.TrimSpace(out)), nil
 }
 
 type Revision struct {

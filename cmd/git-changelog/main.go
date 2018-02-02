@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/github/hub/github"
 	"github.com/influxdata/changelog"
 	"github.com/influxdata/changelog/git"
 	"github.com/octokit/go-octokit/octokit"
+	flag "github.com/spf13/pflag"
 )
 
 func Fatalf(s string, v ...interface{}) {
@@ -57,6 +59,8 @@ func detectAuthMethod() (octokit.AuthMethod, error) {
 }
 
 func main() {
+	flag.Parse()
+
 	// Change to the root of the git repository.
 	dir, err := git.Root()
 	if err != nil {
@@ -70,19 +74,30 @@ func main() {
 		Fatalf("Could not load CHANGELOG.md: %s", err)
 	}
 
-	// Find the last modified commit of the changelog.
-	rev, err := git.LastModified("CHANGELOG.md")
-	if err != nil {
-		Fatalf("Could not find revision history for CHANGELOG.md: %s", err)
-	}
+	// Process the arguments and convert them to ranges that go to head if they are
+	// not already a range.
+	args := flag.Args()
+	if len(args) == 0 {
+		// If there are no arguments, use the last tag as the range.
+		tag, err := git.LastTag()
+		if err != nil {
+			Fatalf("Could not find last tag: %s", err)
+		}
 
-	var revisions []string
-	if rev != "" {
-		revisions, err = git.RevList(rev, git.HEAD)
+		if tag != "" {
+			args = append(args, git.Range(tag, "HEAD"))
+		} else {
+			args = append(args, "HEAD")
+		}
 	} else {
-		revisions, err = git.RevList(git.HEAD)
+		for i, arg := range args {
+			if !strings.Contains(arg, "..") {
+				args[i] = git.Range(arg, "HEAD")
+			}
+		}
 	}
 
+	revisions, err := git.Merges(args...)
 	if err != nil {
 		Fatalf("Could not list revisions: %s", err)
 	}
