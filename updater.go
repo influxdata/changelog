@@ -22,6 +22,7 @@ const (
 var ErrNoEntry = errors.New("no entry processed from revision")
 
 type Revision interface {
+	ID() string
 	Subject() string
 	Message() string
 }
@@ -86,7 +87,7 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 	}
 
 	// Retrieve the last tag for this PR so we can select which version this belongs in.
-	tag, err := git.LastTag()
+	tag, err := git.LastTag(rev.ID())
 	if err != nil {
 		return nil, err
 	}

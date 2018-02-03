@@ -317,13 +317,3 @@ func ParseFile(fpath string) (*Changelog, error) {
 		doc: md.Parse(in),
 	}, nil
 }
-
-func getHeadingText(node *blackfriday.Node) string {
-	var buf bytes.Buffer
-	for n := node.FirstChild; n != nil; n = n.Next {
-		if n.Type == blackfriday.Text {
-			buf.Write(n.Literal)
-		}
-	}
-	return buf.String()
-}
