@@ -178,7 +178,7 @@ func (u *GitHubUpdater) findIssueType(n int) (EntryType, error) {
 }
 
 func (u *GitHubUpdater) findTargetBranch(n int) (string, error) {
-	url, err := octokit.PullRequestsURL.Expand(octokit.M{
+	reqURL, err := octokit.PullRequestsURL.Expand(octokit.M{
 		"owner":  u.project.Owner,
 		"repo":   u.project.Name,
 		"number": n,
@@ -186,7 +186,7 @@ func (u *GitHubUpdater) findTargetBranch(n int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	pr, result := u.client.PullRequests(url).One()
+	pr, result := u.client.PullRequests(reqURL).One()
 	if result.Err != nil {
 		return "", result.Err
 	}
