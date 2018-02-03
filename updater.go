@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/github/hub/github"
 	"github.com/influxdata/changelog/git"
 	"github.com/octokit/go-octokit/octokit"
 )
@@ -53,12 +54,14 @@ type Updater interface {
 }
 
 type GitHubUpdater struct {
-	client *octokit.Client
+	project *github.Project
+	client  *octokit.Client
 }
 
-func NewGitHubUpdater(authMethod octokit.AuthMethod) *GitHubUpdater {
+func NewGitHubUpdater(project *github.Project, authMethod octokit.AuthMethod) *GitHubUpdater {
 	return &GitHubUpdater{
-		client: octokit.NewClient(authMethod),
+		project: project,
+		client:  octokit.NewClient(authMethod),
 	}
 }
 
@@ -146,7 +149,7 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 		URL: &url.URL{
 			Scheme: "https",
 			Host:   "github.com",
-			Path:   fmt.Sprintf("/influxdata/influxdb/pull/%d", number),
+			Path:   fmt.Sprintf("/%s/%s/pull/%d", u.project.Owner, u.project.Name, number),
 		},
 		Message: rev.Message(),
 		Version: ver,
@@ -155,8 +158,8 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 
 func (u *GitHubUpdater) findIssueType(n int) (EntryType, error) {
 	labels, result := u.client.IssueLabels().All(nil, octokit.M{
-		"owner":  "influxdata",
-		"repo":   "influxdb",
+		"owner":  u.project.Owner,
+		"repo":   u.project.Name,
 		"number": n,
 	})
 	if result.Err != nil {
@@ -176,8 +179,8 @@ func (u *GitHubUpdater) findIssueType(n int) (EntryType, error) {
 
 func (u *GitHubUpdater) findTargetBranch(n int) (string, error) {
 	url, err := octokit.PullRequestsURL.Expand(octokit.M{
-		"owner":  "influxdata",
-		"repo":   "influxdb",
+		"owner":  u.project.Owner,
+		"repo":   u.project.Name,
 		"number": n,
 	})
 	if err != nil {

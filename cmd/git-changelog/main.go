@@ -20,15 +20,15 @@ func Fatalf(s string, v ...interface{}) {
 	os.Exit(1)
 }
 
-func detectAuthMethod() (octokit.AuthMethod, error) {
+func detectLocalRepo() (*github.Project, octokit.AuthMethod, error) {
 	localRepo, err := github.LocalRepo()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	project, err := localRepo.MainProject()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Check to see if we just already have an access token.
@@ -46,7 +46,7 @@ func detectAuthMethod() (octokit.AuthMethod, error) {
 			})
 			return result.Err == nil
 		}(); ok {
-			return nil, nil
+			return project, nil, nil
 		}
 		host = &github.Host{Host: project.Host}
 	}
@@ -55,9 +55,9 @@ func detectAuthMethod() (octokit.AuthMethod, error) {
 	// ask for a username/password for hub if one does not exist.
 	client := github.NewClientWithHost(host)
 	if !client.IsRepositoryExist(project) {
-		return nil, errors.New("repository does not exist")
+		return nil, nil, errors.New("repository does not exist")
 	}
-	return octokit.TokenAuth{AccessToken: client.Host.AccessToken}, nil
+	return project, octokit.TokenAuth{AccessToken: client.Host.AccessToken}, nil
 }
 
 func main() {
@@ -118,12 +118,12 @@ func main() {
 		Fatalf("Could not list revisions: %s", err)
 	}
 
-	authMethod, err := detectAuthMethod()
+	project, authMethod, err := detectLocalRepo()
 	if err != nil {
 		Fatalf("Could not access repository: %s", err)
 	}
 
-	updater := changelog.NewGitHubUpdater(authMethod)
+	updater := changelog.NewGitHubUpdater(project, authMethod)
 	for _, rev := range revisions {
 		if err := func() error {
 			rev, err := git.Show(rev)
