@@ -43,6 +43,15 @@ func TestLastTag(t *testing.T) {
 	}
 }
 
+func TestLastTag_NotExist(t *testing.T) {
+	tag, err := git.LastTag("08bef2922de13ae30779128e6d3c218a26042749")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if got, want := tag, ""; got != want {
+		t.Fatalf("unexpected tag: got=%v want=%v", got, want)
+	}
+}
+
 func TestShow(t *testing.T) {
 	rev, err := git.Show("fbb1c17877bdc849d774d5da3c9d621ee0104e90")
 	if err != nil {

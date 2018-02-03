@@ -13,6 +13,8 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
+const ChangelogPath = "CHANGELOG.md"
+
 func Fatalf(s string, v ...interface{}) {
 	fmt.Printf(fmt.Sprintf("fatal: %s\n", s), v...)
 	os.Exit(1)
@@ -69,10 +71,17 @@ func main() {
 	}
 	os.Chdir(dir)
 
-	// Parse the changelog.
-	c, err := changelog.ParseFile("CHANGELOG.md")
-	if err != nil {
-		Fatalf("Could not load CHANGELOG.md: %s", err)
+	// Parse the changelog if it exists or generate an empty one.
+	var c *changelog.Changelog
+	if _, err := os.Stat(ChangelogPath); err == nil {
+		c, err = changelog.ParseFile(ChangelogPath)
+		if err != nil {
+			Fatalf("Could not read %s: %s", ChangelogPath, err)
+		}
+	} else if !os.IsNotExist(err) {
+		Fatalf("Could not read %s: %s", ChangelogPath, err)
+	} else {
+		c = changelog.New()
 	}
 
 	// Process the arguments and convert them to ranges that go to head if they are
@@ -135,7 +144,7 @@ func main() {
 		}
 	}
 
-	if err := c.WriteFile("CHANGELOG.md"); err != nil {
-		Fatalf("Could not update CHANGELOG.md: %s", err)
+	if err := c.WriteFile(ChangelogPath); err != nil {
+		Fatalf("Could not update %s: %s", ChangelogPath, err)
 	}
 }

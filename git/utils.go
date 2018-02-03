@@ -70,12 +70,11 @@ func LastTag(revs ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", err
-	}
-
-	if err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
-			if string(bytes.TrimSpace(out)) == "fatal: No names found, cannot describe anything." {
+			errOut := string(bytes.TrimSpace(out))
+			if errOut == "fatal: No names found, cannot describe anything." {
+				return "", nil
+			} else if strings.HasPrefix(errOut, "fatal: No tags can describe") {
 				return "", nil
 			}
 		}

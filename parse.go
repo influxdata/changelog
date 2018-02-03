@@ -36,6 +36,11 @@ type Changelog struct {
 	doc *blackfriday.Node
 }
 
+func New() *Changelog {
+	doc := blackfriday.NewNode(blackfriday.Document)
+	return &Changelog{doc: doc}
+}
+
 func (c *Changelog) AddEntry(e *Entry) error {
 	heading, ok := headings[e.Type]
 	if !ok {
