@@ -112,7 +112,7 @@ func (c *Changelog) AddEntry(e *Entry) error {
 	}
 
 	// Find the section we wish to insert this value into.
-	entries := c.findOrCreateHeading(section.Next, section.HeadingData.Level, func(text string) int {
+	entries := c.findOrCreateHeading(section, section.HeadingData.Level, func(text string) int {
 		if text == heading.Name {
 			return 0
 		} else if text == heading.IsBefore {
@@ -180,66 +180,6 @@ func (c *Changelog) createListItem(e *Entry) *blackfriday.Node {
 	return item
 }
 
-func (c *Changelog) hasEntry(e *Entry) bool {
-	ver := c.findVersionHeading(e.Version)
-	if ver == nil {
-		return false
-	}
-
-	var found bool
-	for n := ver.Next; n != nil; n = n.Next {
-		if n.Type == blackfriday.Heading && n.HeadingData.Level <= 2 {
-			break
-		}
-
-		n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-			if node.Type == blackfriday.Link {
-				var buf bytes.Buffer
-				for n := node.FirstChild; n != nil; n = n.Next {
-					n.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-						buf.Write(node.Literal)
-						return blackfriday.GoToNext
-					})
-				}
-
-				text := buf.Bytes()
-				text = bytes.TrimPrefix(text, []byte{'#'})
-				n, err := strconv.Atoi(string(text))
-				if err != nil {
-					return blackfriday.SkipChildren
-				}
-
-				if n == e.Number {
-					found = true
-					return blackfriday.Terminate
-				}
-				return blackfriday.SkipChildren
-			}
-			return blackfriday.GoToNext
-		})
-
-		if found {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *Changelog) findVersionHeading(v *Version) *blackfriday.Node {
-	return c.findOrCreateHeading(nil, 0, func(text string) int {
-		m := reVersionHeader.FindStringSubmatch(text)
-		if m == nil {
-			return -1
-		}
-
-		ver, err := NewVersion(m[1])
-		if err != nil {
-			return -1
-		}
-		return ver.Compare(v)
-	}, nil)
-}
-
 func (c *Changelog) findOrCreateHeading(start *blackfriday.Node, level int, cmp func(text string) int, create func() *blackfriday.Node) (section *blackfriday.Node) {
 	if start == nil {
 		if c.doc.FirstChild == nil {
@@ -250,6 +190,14 @@ func (c *Changelog) findOrCreateHeading(start *blackfriday.Node, level int, cmp 
 			return section
 		}
 		start = c.doc.FirstChild
+	} else if start.Next == nil {
+		if create != nil {
+			section = create()
+			start.Parent.AppendChild(section)
+		}
+		return section
+	} else {
+		start = start.Next
 	}
 
 	for n := start; n != nil; n = n.Next {
