@@ -24,17 +24,6 @@ func Root() (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-// LastModified finds the commit hash where the path was last modified.
-// If the path does not exist or has never been modified, this returns an empty string.
-func LastModified(path string) (string, error) {
-	cmd := exec.Command("git", "log", "-1", "-m", "--first-parent", "--pretty=format:%H", "--", path)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return string(bytes.TrimSpace(out)), nil
-}
-
 // Range returns a string for specifying a range between two commits.
 func Range(start, end string) string {
 	return fmt.Sprintf("%s..%s", start, end)
@@ -73,8 +62,12 @@ func Merges(revs ...string) ([]string, error) {
 
 // LastTag finds the last tag if it exists. If no tag can be found, then
 // this returns a blank string.
-func LastTag() (string, error) {
-	cmd := exec.Command("git", "describe", "--abbrev=0", "--tags")
+func LastTag(revs ...string) (string, error) {
+	args := []string{"describe", "--abbrev=0", "--tags"}
+	if len(revs) > 0 {
+		args = append(args, revs...)
+	}
+	cmd := exec.Command("git", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
@@ -92,7 +85,12 @@ func LastTag() (string, error) {
 }
 
 type Revision struct {
+	id            string
 	subject, body string
+}
+
+func (r *Revision) ID() string {
+	return r.id
 }
 
 func (r *Revision) Subject() string {
@@ -118,6 +116,7 @@ func Show(rev string) (*Revision, error) {
 	}
 	body := string(bytes.TrimSpace(out))
 	return &Revision{
+		id:      rev,
 		subject: subject,
 		body:    body,
 	}, nil
