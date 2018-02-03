@@ -122,7 +122,7 @@ func (u *GitHubUpdater) findIssueType(n int) (EntryType, error) {
 		switch l.Name {
 		case "kind/feature request":
 			return FeatureRequest, nil
-		case "kind/bugfix":
+		case "kind/bug":
 			return Bugfix, nil
 		}
 	}
