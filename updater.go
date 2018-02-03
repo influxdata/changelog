@@ -105,9 +105,38 @@ func (u *GitHubUpdater) NewEntry(rev Revision) (*Entry, error) {
 	// If rc is present, then we have a release candidate and should not increment the version number.
 	// If we do not, then increment the version.
 	if m[3] == "" {
-		segments := ver.Segments()
-		if len(segments) > 1 {
-			segments[1]++
+		// This is not a release candidate. We need to determine if this is a pull request merged into
+		// master or if this is merged into a release branch. If it is merged into a release branch,
+		// it is a patch change.
+		branch, err := u.findTargetBranch(number)
+		if err != nil {
+			return nil, err
+		}
+
+		if branch != "master" {
+			v, err := NewVersion(branch)
+			if err != nil {
+				return nil, err
+			}
+
+			// There is a version. Ensure that the version we are merging into
+			// has fewer segments than the last tag version AND that the prefixes
+			// match.
+			if len(v.Segments()) >= len(ver.Segments()) {
+				return nil, errors.New("release branch has equal to or more segments than the version tag")
+			} else if !ver.HasPrefix(v) {
+				return nil, fmt.Errorf("release branch and tag prefixes do not match: %s != %s", v, ver.Slice(len(v.Segments())))
+			}
+
+			// Increment the segment directly after the one for the release branch.
+			segments := ver.Segments()
+			segments[len(v.Segments())]++
+		} else {
+			// Increment the minor patch version.
+			segments := ver.Segments()
+			if len(segments) > 1 {
+				segments[1]++
+			}
 		}
 	}
 
@@ -143,4 +172,20 @@ func (u *GitHubUpdater) findIssueType(n int) (EntryType, error) {
 		}
 	}
 	return UnknownEntryType, nil
+}
+
+func (u *GitHubUpdater) findTargetBranch(n int) (string, error) {
+	url, err := octokit.PullRequestsURL.Expand(octokit.M{
+		"owner":  "influxdata",
+		"repo":   "influxdb",
+		"number": n,
+	})
+	if err != nil {
+		return "", err
+	}
+	pr, result := u.client.PullRequests(url).One()
+	if result.Err != nil {
+		return "", result.Err
+	}
+	return pr.Base.Ref, nil
 }

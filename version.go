@@ -2,6 +2,7 @@ package changelog
 
 import (
 	"bytes"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -57,6 +58,19 @@ func (v *Version) Equal(other *Version) bool {
 
 func (v *Version) Segments() []int {
 	return v.segments
+}
+
+func (v *Version) HasPrefix(other *Version) bool {
+	if len(v.segments) > len(other.segments) {
+		return false
+	}
+	return reflect.DeepEqual(v.segments[:len(other.segments)], other.segments)
+}
+
+func (v *Version) Slice(numSegments int) *Version {
+	return &Version{
+		segments: v.segments[:numSegments],
+	}
 }
 
 func (v *Version) String() string {
