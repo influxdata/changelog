@@ -87,6 +87,10 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Chdir(tmpdir)
+	// Use the current working directory to set RepoDir rather than the path we used for
+	// Chdir. This is because the temporary directory may be mapped to a different physical
+	// location than the one reported back from ioutil.TempDir. This appears to happen on
+	// Mac OS X.
 	RepoDir, _ = os.Getwd()
 	status := m.Run()
 	os.RemoveAll(tmpdir)
