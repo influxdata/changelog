@@ -90,7 +90,7 @@ func main() {
 	args := flag.Args()
 	if *all {
 		if len(args) == 0 {
-			args = append(args, "HEAD")
+			args = append(args, git.HEAD)
 		}
 	} else {
 		if len(args) == 0 {
@@ -101,14 +101,14 @@ func main() {
 			}
 
 			if tag != "" {
-				args = append(args, git.Range(tag, "HEAD"))
+				args = append(args, git.Range(tag, git.HEAD))
 			} else {
-				args = append(args, "HEAD")
+				args = append(args, git.HEAD)
 			}
 		} else {
 			for i, arg := range args {
 				if !strings.Contains(arg, "..") {
-					args[i] = git.Range(arg, "HEAD")
+					args[i] = git.Range(arg, git.HEAD)
 				}
 			}
 		}

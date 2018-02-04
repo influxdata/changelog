@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	reVersionHeader = regexp.MustCompile(`^v(\d+(\.\d+)*) \[(.*)\]$`)
+	reVersionHeader = regexp.MustCompile(`^v(\d+(\.\d+)*) \[(.*)]$`)
 	headings        = map[EntryType]struct {
 		Name string
 		// IsBefore marks which heading entry this entry is before. That way
