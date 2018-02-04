@@ -14,7 +14,7 @@ const HEAD = "HEAD"
 // Root returns the root of the git repository.
 func Root() (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			return "", errors.New(strings.TrimPrefix(string(bytes.TrimSpace(out)), "fatal: "))
