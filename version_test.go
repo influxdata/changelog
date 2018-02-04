@@ -1,6 +1,7 @@
 package changelog_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -74,5 +75,83 @@ func TestVersion_Compare(t *testing.T) {
 				t.Fatalf("unexpected value: got=%d want=%d", got, want)
 			}
 		})
+	}
+}
+
+func TestVersion_Equal(t *testing.T) {
+	for _, tt := range []struct {
+		lhs, rhs string
+		want     bool
+	}{
+		{
+			lhs:  "1.2.3",
+			rhs:  "1.2.3",
+			want: true,
+		},
+		{
+			lhs:  "1.2",
+			rhs:  "1.2.0",
+			want: false,
+		},
+		{
+			lhs:  "1.2.0",
+			rhs:  "1.2",
+			want: false,
+		},
+		{
+			lhs:  "1.3.2",
+			rhs:  "1.3.3",
+			want: false,
+		},
+	} {
+		t.Run(fmt.Sprintf("%s = %s", tt.lhs, tt.rhs), func(t *testing.T) {
+			v1, v2 := changelog.MustVersion(tt.lhs), changelog.MustVersion(tt.rhs)
+			if got, want := v1.Equal(v2), tt.want; got != want {
+				t.Fatalf("unexpected result: got=%v want=%v", got, want)
+			}
+		})
+	}
+}
+
+func TestVersion_HasPrefix(t *testing.T) {
+	for _, tt := range []struct {
+		s     string
+		other string
+		want  bool
+	}{
+		{
+			s:     "1.2.3",
+			other: "1.2",
+			want:  true,
+		},
+		{
+			s:     "1.3.0",
+			other: "1.2",
+			want:  false,
+		},
+		{
+			s:     "1.3.5.3",
+			other: "1.3",
+			want:  true,
+		},
+		{
+			s:     "1.2",
+			other: "1.2.3",
+			want:  false,
+		},
+	} {
+		t.Run(fmt.Sprintf("%v.HasPrefix(%v)", tt.s, tt.other), func(t *testing.T) {
+			v1, v2 := changelog.MustVersion(tt.s), changelog.MustVersion(tt.other)
+			if got, want := v1.HasPrefix(v2), tt.want; got != want {
+				t.Fatalf("unexpected result: got=%v want=%v", got, want)
+			}
+		})
+	}
+}
+
+func TestVersion_Slice(t *testing.T) {
+	v := changelog.MustVersion("1.2.3")
+	if got, want := v.Slice(2).String(), "1.2"; got != want {
+		t.Fatalf("unexpected version: %v != %v", got, want)
 	}
 }
