@@ -61,7 +61,7 @@ func (v *Version) Segments() []int {
 }
 
 func (v *Version) HasPrefix(other *Version) bool {
-	if len(v.segments) > len(other.segments) {
+	if len(v.segments) < len(other.segments) {
 		return false
 	}
 	return reflect.DeepEqual(v.segments[:len(other.segments)], other.segments)

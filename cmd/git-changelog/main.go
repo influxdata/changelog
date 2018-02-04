@@ -9,6 +9,7 @@ import (
 	"github.com/github/hub/github"
 	"github.com/influxdata/changelog"
 	"github.com/influxdata/changelog/git"
+	"github.com/influxdata/changelog/updater"
 	"github.com/octokit/go-octokit/octokit"
 	flag "github.com/spf13/pflag"
 )
@@ -123,7 +124,7 @@ func main() {
 		Fatalf("Could not access repository: %s", err)
 	}
 
-	updater := changelog.NewGitHubUpdater(project, authMethod)
+	u := updater.GitHub(project.Owner, project.Name, authMethod)
 	for _, rev := range revisions {
 		if err := func() error {
 			rev, err := git.Show(rev)
@@ -131,7 +132,7 @@ func main() {
 				return err
 			}
 
-			entry, err := updater.NewEntry(rev)
+			entry, err := u.NewEntry(rev)
 			if err != nil {
 				if err == changelog.ErrNoEntry {
 					return nil
