@@ -138,7 +138,8 @@ func main() {
 				}
 				return err
 			}
-			return c.AddEntry(entry)
+			c.AddEntry(entry)
+			return nil
 		}(); err != nil {
 			fmt.Println("Error:", err)
 		}

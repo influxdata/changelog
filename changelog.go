@@ -41,10 +41,10 @@ func New() *Changelog {
 	return &Changelog{doc: doc}
 }
 
-func (c *Changelog) AddEntry(e *Entry) error {
+func (c *Changelog) AddEntry(e *Entry) {
 	heading, ok := headings[e.Type]
 	if !ok {
-		return nil
+		return
 	}
 
 	section := c.findOrCreateHeading(nil, 0, func(text string) int {
@@ -107,7 +107,7 @@ func (c *Changelog) AddEntry(e *Entry) error {
 
 		if found {
 			// There is no need to insert this entry since it has been found.
-			return nil
+			return
 		}
 	}
 
@@ -157,7 +157,6 @@ func (c *Changelog) AddEntry(e *Entry) error {
 	}
 	item.ListFlags |= blackfriday.ListItemEndOfList
 	list.AppendChild(item)
-	return nil
 }
 
 func (c *Changelog) createListItem(e *Entry) *blackfriday.Node {
@@ -259,14 +258,17 @@ func (c *Changelog) WriteFile(fpath string) error {
 	return ioutil.WriteFile(fpath, buf.Bytes(), 0666)
 }
 
+func Parse(in []byte) *Changelog {
+	md := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions))
+	return &Changelog{
+		doc: md.Parse(in),
+	}
+}
+
 func ParseFile(fpath string) (*Changelog, error) {
 	in, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return nil, err
 	}
-
-	md := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions))
-	return &Changelog{
-		doc: md.Parse(in),
-	}, nil
+	return Parse(in), nil
 }

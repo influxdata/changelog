@@ -1,8 +1,10 @@
-package changelog
+package changelog_test
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/influxdata/changelog"
 )
 
 func TestVersion(t *testing.T) {
@@ -16,7 +18,7 @@ func TestVersion(t *testing.T) {
 		{s: "v1.2.3", err: "strconv.Atoi: parsing \"v1\": invalid syntax"},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
-			v, err := NewVersion(tt.s)
+			v, err := changelog.NewVersion(tt.s)
 			if err != nil {
 				if tt.err == "" {
 					t.Fatalf("unexpected error: %s", err)
@@ -67,7 +69,7 @@ func TestVersion_Compare(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			v1, v2 := MustVersion(tt.s), MustVersion(tt.other)
+			v1, v2 := changelog.MustVersion(tt.s), changelog.MustVersion(tt.other)
 			if got, want := v1.Compare(v2), tt.value; got != want {
 				t.Fatalf("unexpected value: got=%d want=%d", got, want)
 			}
