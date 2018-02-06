@@ -1,4 +1,4 @@
-FROM golang:1.9.2 as builder
+FROM golang:1.9.3 as builder
 COPY . /go/src/github.com/influxdata/changelog
 RUN go get -d github.com/influxdata/changelog/... && \
     go install github.com/influxdata/changelog/...
