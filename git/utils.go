@@ -63,7 +63,7 @@ func Merges(revs ...string) ([]string, error) {
 // LastTag finds the last tag if it exists. If no tag can be found, then
 // this returns a blank string.
 func LastTag(revs ...string) (string, error) {
-	args := []string{"describe", "--abbrev=0", "--tags"}
+	args := []string{"describe", "--abbrev=0", "--tags", "--first-parent"}
 	if len(revs) > 0 {
 		args = append(args, revs...)
 	}
