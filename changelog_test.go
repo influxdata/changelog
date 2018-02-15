@@ -271,6 +271,52 @@ func TestChangelog_InsertSection(t *testing.T) {
 `)
 }
 
+func TestChangelog_Punctuation(t *testing.T) {
+	c := changelog.New()
+	c.AddEntry(&changelog.Entry{
+		Number: 1,
+		Type:   changelog.FeatureRequest,
+		URL: &url.URL{
+			Scheme: "https",
+			Host:   "github.com",
+			Path:   "/influxdata/changelog/pull/1",
+		},
+		Message: "Initial commit!",
+		Version: changelog.MustVersion("1.2.7"),
+	})
+	c.AddEntry(&changelog.Entry{
+		Number: 2,
+		Type:   changelog.FeatureRequest,
+		URL: &url.URL{
+			Scheme: "https",
+			Host:   "github.com",
+			Path:   "/influxdata/changelog/pull/2",
+		},
+		Message: "Does this work?",
+		Version: changelog.MustVersion("1.2.7"),
+	})
+	c.AddEntry(&changelog.Entry{
+		Number: 3,
+		Type:   changelog.FeatureRequest,
+		URL: &url.URL{
+			Scheme: "https",
+			Host:   "github.com",
+			Path:   "/influxdata/changelog/pull/3",
+		},
+		Message: "A normal change.",
+		Version: changelog.MustVersion("1.2.7"),
+	})
+	expect(t, c, `v1.2.7 [unreleased]
+-------------------
+
+### Features
+
+-	[#1](https://github.com/influxdata/changelog/pull/1): Initial commit!
+-	[#2](https://github.com/influxdata/changelog/pull/2): Does this work?
+-	[#3](https://github.com/influxdata/changelog/pull/3): A normal change.
+`)
+}
+
 func expect(t *testing.T, c *changelog.Changelog, exp string) {
 	tmpdir, err := ioutil.TempDir("", "changelog")
 	if err != nil {

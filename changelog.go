@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/jsternberg/markdownfmt/markdown"
 	"gopkg.in/russross/blackfriday.v2"
@@ -168,7 +169,11 @@ func (c *Changelog) createListItem(e *Entry) *blackfriday.Node {
 	}
 	link.AppendChild(text)
 	comment := blackfriday.NewNode(blackfriday.Text)
-	comment.Literal = []byte(fmt.Sprintf(": %s.", e.Message))
+	message := e.Message
+	if !hasPunctuation(message) {
+		message += "."
+	}
+	comment.Literal = []byte(fmt.Sprintf(": %s", message))
 
 	paragraph := blackfriday.NewNode(blackfriday.Paragraph)
 	paragraph.AppendChild(link)
@@ -271,4 +276,13 @@ func ParseFile(fpath string) (*Changelog, error) {
 		return nil, err
 	}
 	return Parse(in), nil
+}
+
+func hasPunctuation(msg string) bool {
+	for _, s := range []string{".", "!", "?"} {
+		if strings.HasSuffix(msg, s) {
+			return true
+		}
+	}
+	return false
 }
