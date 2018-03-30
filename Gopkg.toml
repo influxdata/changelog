@@ -1,0 +1,27 @@
+[[constraint]]
+  branch = "master"
+  name = "github.com/github/hub"
+
+[[constraint]]
+  name = "github.com/google/go-cmp"
+  version = "0.2.0"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/jsternberg/markdownfmt"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/octokit/go-octokit"
+
+[[constraint]]
+  name = "github.com/spf13/pflag"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "gopkg.in/russross/blackfriday.v2"
+  version = "2.0.0"
+
+[prune]
+  go-tests = true
+  unused-packages = true

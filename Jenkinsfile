@@ -11,11 +11,13 @@ pipeline {
 
       steps {
         sh """
+        go get github.com/golang/dep/cmd/dep
+
         mkdir -p /go/src/github.com/influxdata
         cp -a $WORKSPACE /go/src/github.com/influxdata/changelog
 
         cd /go/src/github.com/influxdata/changelog
-        go get -d -t ./...
+        dep ensure -v -vendor-only
         go test -parallel=1 ./...
         """
       }
