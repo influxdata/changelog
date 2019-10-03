@@ -32,17 +32,21 @@ The generated changelog is written to standard out.
 
 var commitURL string
 var versionStr string
+var outputFile string
 
 func init() {
 	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.PersistentFlags().StringVar(&commitURL, "commit-url", "", "URL for linking to specific commits. The commit SHA will be appended as the last path element of the URL.")
 	generateCmd.PersistentFlags().StringVar(&versionStr, "version", "", "The version of the release, a change log is generated for all commits between this version and the next lowest version. If the version is empty a changelog is generated for HEAD.")
+	generateCmd.PersistentFlags().StringVarP(&outputFile, "output", "o", "", "Write changelog output to the file (use - for stdout)")
 }
 
 // doGenerate generates the changelog writing it to stdout.
 func doGenerate(cmd *cobra.Command, args []string) error {
-	r, err := git.PlainOpen(".")
+	r, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
+		DetectDotGit: true,
+	})
 	if err != nil {
 		return err
 	}
@@ -52,7 +56,15 @@ func doGenerate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return writeChangelog(os.Stdout, release)
+	f := os.Stdout
+	if outputFile != "" && outputFile != "-" {
+		f, err = os.Create(outputFile)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+	}
+	return writeChangelog(f, release)
 }
 
 //  createRelease constructs the release object from the given git repo.
