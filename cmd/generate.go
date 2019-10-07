@@ -125,34 +125,85 @@ func findVersionHash(r *git.Repository, verTag string) (plumbing.Hash, error) {
 	return tag.Target, nil
 }
 
-// findPreviousRelease searches for the highest semantic version tag.
+func findCommitFromTagRef(r *git.Repository, tagRef *plumbing.Reference) (*object.Commit, error) {
+	var c *object.Commit
+	tag, err := r.TagObject(tagRef.Hash())
+	if err != nil && err != plumbing.ErrObjectNotFound {
+		return nil, err
+	} else if err == plumbing.ErrObjectNotFound {
+		// Some tag refs point at tag objects, and others seem to point
+		// directly at commits.
+		c, err = r.CommitObject(tagRef.Hash())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		c, err = tag.Commit()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return c, nil
+}
+
+// findPreviousRelease searches for the highest semantic version tag
+// that points at a commit that is an ancestor of HEAD.
 func findPreviousRelease(r *git.Repository, v *semver.Version) (*semver.Version, plumbing.Hash, error) {
-	tags, err := r.Tags()
+	var headCommit *object.Commit
+	if v == nil {
+		headRef, err := r.Head()
+		if err != nil {
+			return nil, plumbing.ZeroHash, errors.Wrap(err, "could not get HEAD ref")
+		}
+		headCommit, err = r.CommitObject(headRef.Hash())
+		if err != nil {
+			return nil, plumbing.ZeroHash, errors.Wrap(err, "could not get commit for HEAD")
+		}
+	}
+
+	tagRefIter, err := r.Tags()
+	if err != nil {
+		return nil, plumbing.ZeroHash, errors.Wrap(err, "could not get tag refs for repo")
+	}
+	defer tagRefIter.Close()
+
+	var maxVersion *semver.Version
+	var maxRef *plumbing.Reference
+	err = tagRefIter.ForEach(func(ref *plumbing.Reference) error {
+		ver, err := semver.NewVersion(ref.Name().Short())
+		if err != nil ||
+			(v != nil && (ver.GreaterThan(v) || ver.Equal(v))) ||
+			(maxVersion != nil && ver.LessThan(maxVersion)) {
+			return nil
+		}
+
+		if headCommit != nil {
+			commit, err := findCommitFromTagRef(r, ref)
+			if err != nil {
+				return errors.Wrap(err, "could not get commit from tag ref")
+			}
+			isAncestor, err := commit.IsAncestor(headCommit)
+			if err != nil {
+				return errors.Wrap(err, "could not determine ancestor")
+			}
+			if !isAncestor {
+				return nil
+			}
+		}
+
+		maxVersion = ver
+		maxRef = ref
+		return nil
+	})
 	if err != nil {
 		return nil, plumbing.ZeroHash, err
 	}
-	defer tags.Close()
-	var maxVersion *semver.Version
-	var maxRef *plumbing.Reference
-	for {
-		tag, err := tags.Next()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, plumbing.ZeroHash, err
-		}
-		ver, err := semver.NewVersion(tag.Name().Short())
-		if err == nil &&
-			(v == nil || ver.LessThan(v)) &&
-			(maxVersion == nil || ver.GreaterThan(maxVersion)) {
-			maxVersion = ver
-			maxRef = tag
-		}
+	if maxRef == nil {
+		return nil, plumbing.ZeroHash, errors.New("no previous release found")
 	}
 	tag, err := r.TagObject(maxRef.Hash())
 	if err != nil {
-		return nil, plumbing.ZeroHash, err
+		return nil, plumbing.ZeroHash, errors.Wrap(err, "could not get tag object from maxRef")
 	}
 	return maxVersion, tag.Target, nil
 }
