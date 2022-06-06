@@ -429,7 +429,7 @@ type Commit struct {
 // headerPattern matches the type, scope and description of a commit message header.
 var headerPattern = regexp.MustCompile(`^(\w+)(\([\w/]+\))?:(.+)$`)
 
-const breaking = "BREAKING CHANGE:"
+const breaking = "BREAKING CHANGE"
 
 func parseCommit(commit *object.Commit) (Commit, error) {
 	var (
