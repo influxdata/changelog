@@ -33,6 +33,8 @@ The generated changelog is written to standard out.
 var commitURL string
 var versionStr string
 var outputFile string
+var repoPath string
+var lightweightOK bool
 
 func init() {
 	rootCmd.AddCommand(generateCmd)
@@ -40,11 +42,13 @@ func init() {
 	generateCmd.PersistentFlags().StringVar(&commitURL, "commit-url", "", "URL for linking to specific commits. The commit SHA will be appended as the last path element of the URL.")
 	generateCmd.PersistentFlags().StringVar(&versionStr, "version", "", "The version of the release, a change log is generated for all commits between this version and the next lowest version. If the version is empty a changelog is generated for HEAD.")
 	generateCmd.PersistentFlags().StringVarP(&outputFile, "output", "o", "", "Write changelog output to the file (use - for stdout)")
+	generateCmd.PersistentFlags().StringVarP(&repoPath, "path", "p", ".", "The absolute path at which to look for a git repo")
+	generateCmd.PersistentFlags().BoolVarP(&lightweightOK, "light", "l", false, "Whether to consider lightweight commits when looking for tags")
 }
 
 // doGenerate generates the changelog writing it to stdout.
 func doGenerate(cmd *cobra.Command, args []string) error {
-	r, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
+	r, err := git.PlainOpenWithOptions(repoPath, &git.PlainOpenOptions{
 		DetectDotGit: true,
 	})
 	if err != nil {
@@ -109,6 +113,7 @@ func createRelease(r *git.Repository, verTag string) (*Release, error) {
 func findVersionHash(r *git.Repository, verTag string) (plumbing.Hash, error) {
 	if verTag == "" {
 		ref, err := r.Head()
+		//log.Printf(ref.String())
 		if err != nil {
 			return plumbing.ZeroHash, err
 		}
@@ -201,9 +206,13 @@ func findPreviousRelease(r *git.Repository, v *semver.Version) (*semver.Version,
 	if maxRef == nil {
 		return nil, plumbing.ZeroHash, errors.New("no previous release found")
 	}
-	tag, err := r.TagObject(maxRef.Hash())
+	tag, err := r.TagObject(maxRef.Hash()) // only returns Annotated Tags
 	if err != nil {
-		return nil, plumbing.ZeroHash, errors.Wrap(err, "could not get tag object from maxRef")
+		if !lightweightOK {
+			return nil, plumbing.ZeroHash, errors.Wrap(err, "could not get tag object from maxRef")
+		} else {
+			return maxVersion, maxRef.Hash(), nil
+		}
 	}
 	return maxVersion, tag.Target, nil
 }
