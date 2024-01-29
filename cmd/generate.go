@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
+	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 var generateCmd = &cobra.Command{
@@ -67,7 +67,7 @@ func doGenerate(cmd *cobra.Command, args []string) error {
 	return writeChangelog(f, release)
 }
 
-//  createRelease constructs the release object from the given git repo.
+// createRelease constructs the release object from the given git repo.
 func createRelease(r *git.Repository, verTag string) (*Release, error) {
 	currHash, err := findVersionHash(r, verTag)
 	if err != nil {
@@ -262,8 +262,6 @@ func findNewCommits(r *git.Repository, prevHash, currHash plumbing.Hash) ([]Comm
 }
 
 // findMergeBase finds the common parent commit the two commits have.
-//
-//
 func findMergeBase(r *git.Repository, prevHash, currHash plumbing.Hash) (plumbing.Hash, error) {
 	// Process the log from the previous hash and the current hash
 	// simultaneously to find the most recent common ancestor of the

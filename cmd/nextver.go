@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	git "github.com/go-git/go-git/v5"
 	"github.com/spf13/cobra"
-	git "gopkg.in/src-d/go-git.v4"
 )
 
 var nextverCmd = &cobra.Command{
